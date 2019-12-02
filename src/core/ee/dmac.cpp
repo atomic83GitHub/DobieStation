@@ -291,15 +291,19 @@ int DMAC::process_VIF1()
 
                 if (!vif1->feed_DMA(fetch128(channels[VIF1].address)))
                     break;
+
+                advance_source_dma(VIF1);
             }
             else
             {
                 store128(channels[VIF1].address, vif1->readFIFO());
+                channels[VIF1].quadword_count--;
+                channels[VIF1].address += 16;
             }
-            advance_source_dma(VIF1);
             count++;
         }
     }
+
     if (!channels[VIF1].quadword_count)
     {
         if (channels[VIF1].tag_end)
