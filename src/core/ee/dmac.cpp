@@ -32,7 +32,10 @@ void DMAC::reset(uint8_t* new_RDRAM, uint8_t* new_scratchpad)
     cycles_to_run = 0;
 
     active_channel = nullptr;
-    queued_channels.clear();
+    queued_chan_count = 0;
+
+    for (int i = 0; i < DMAC_PRIORITIES; i++)
+        queued_channels[i].clear();
 
     for (int i = 0; i < 15; i++)
     {
@@ -40,9 +43,14 @@ void DMAC::reset(uint8_t* new_RDRAM, uint8_t* new_scratchpad)
         channels[i].control = 0;
         channels[i].dma_req = false;
         channels[i].index = i;
+        channels[i].priority = 3;
         interrupt_stat.channel_mask[i] = false;
         interrupt_stat.channel_stat[i] = false;
     }
+
+    channels[VIF0].priority = 1;
+    channels[EE_SIF2].priority = 2;
+    channels[EE_REQ].priority = 4;
 
     //SPR channels don't have a FIFO, so they can always run when started
     channels[SPR_FROM].dma_req = true;
@@ -1683,7 +1691,8 @@ void DMAC::check_for_activation(int index)
             active_channel = &channels[index];
         else
         {
-            queued_channels.push_back(&channels[index]);
+            queued_channels[channels[index].priority].push_back(&channels[index]);
+            queued_chan_count++;
         }
     }
 }
@@ -1691,20 +1700,22 @@ void DMAC::check_for_activation(int index)
 void DMAC::deactivate_channel(int index)
 {
     //printf("[DMAC] Deactivating %s\n", CHAN(index));
+    int prio = channels[index].priority;
     if (active_channel == &channels[index])
     {
         active_channel = nullptr;
-        if (queued_channels.size())
+        if (queued_channels[prio].size())
             find_new_active_channel();
     }
     else
     {
-        for (auto it = queued_channels.begin(); it != queued_channels.end(); it++)
+        for (auto it = queued_channels[prio].begin(); it != queued_channels[prio].end(); it++)
         {
             DMA_Channel* channel = *it;
             if (channel == &channels[index])
             {
-                queued_channels.erase(it);
+                queued_channels[prio].erase(it);
+                queued_chan_count--;
                 break;
             }
         }
@@ -1714,7 +1725,7 @@ void DMAC::deactivate_channel(int index)
 void DMAC::arbitrate()
 {
     //Only switch to a new channel if something is queued
-    if (queued_channels.size())
+    if (queued_chan_count)
     {
         /*bool is_active = active_channel;
         if (is_active)
@@ -1730,12 +1741,25 @@ void DMAC::arbitrate()
 
 void DMAC::find_new_active_channel()
 {
-    if (active_channel)
+    DMA_Channel* new_chan = nullptr;
+    for (int i = 0; i < DMAC_PRIORITIES; i++)
     {
-        queued_channels.push_back(active_channel);
-        active_channel = nullptr;
+        if (queued_channels[i].size())
+        {
+            new_chan = queued_channels[i].front();
+            queued_channels[i].pop_front();
+            queued_chan_count--;
+            break;
+        }
     }
 
-    active_channel = queued_channels.front();
-    queued_channels.pop_front();
+    //If the current channel is still active, push it back to the queue.
+    //This needs to be done after we find the new channel
+    if (active_channel)
+    {
+        queued_channels[active_channel->priority].push_back(active_channel);
+        queued_chan_count++;
+    }
+
+    active_channel = new_chan;
 }

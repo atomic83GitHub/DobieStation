@@ -531,14 +531,17 @@ void DMAC::load_state(ifstream &state)
     else
         active_channel = nullptr;
 
-    int queued_size;
-    state.read((char*)&queued_size, sizeof(queued_size));
-    if (queued_size > 0)
+    for (int i = 0; i < DMAC_PRIORITIES; i++)
     {
-        for (int i = 0; i < queued_size; i++)
+        int queued_size;
+        state.read((char*)&queued_size, sizeof(queued_size));
+        if (queued_size > 0)
         {
-            state.read((char*)&index, sizeof(index));
-            queued_channels.push_back(&channels[index]);
+            for (int j = 0; j < queued_size; j++)
+            {
+                state.read((char*)&index, sizeof(index));
+                queued_channels[i].push_back(&channels[index]);
+            }
         }
     }
 }
@@ -565,14 +568,17 @@ void DMAC::save_state(ofstream &state)
         index = -1;
 
     state.write((char*)&index, sizeof(index));
-    int size = queued_channels.size();
-    state.write((char*)&size, sizeof(size));
-    if (size > 0)
+    for (int i = 0; i < DMAC_PRIORITIES; i++)
     {
-        for (auto it = queued_channels.begin(); it != queued_channels.end(); )
+        int size = queued_channels[i].size();
+        state.write((char*)&size, sizeof(size));
+        if (size > 0)
         {
-            index = (*it)->index;
-            state.write((char*)&index, sizeof(index));
+            for (auto it = queued_channels[i].begin(); it != queued_channels[i].end(); )
+            {
+                index = (*it)->index;
+                state.write((char*)&index, sizeof(index));
+            }
         }
     }
 }
