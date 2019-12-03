@@ -6,6 +6,8 @@
 
 #include "../int128.hpp"
 
+#define DMAC_PRIORITIES 5
+
 enum DMAC_CHANNELS
 {
     VIF0,
@@ -18,6 +20,7 @@ enum DMAC_CHANNELS
     EE_SIF2,
     SPR_FROM,
     SPR_TO,
+    EE_REQ,
     MFIFO_EMPTY = 14
 };
 
@@ -46,6 +49,7 @@ struct DMA_Channel
     bool is_spr;
 
     int index;
+    int priority;
 };
 
 //Regs
@@ -93,8 +97,15 @@ class DMAC
         DMA_Channel channels[15];
 
         DMA_Channel* active_channel;
-        DMA_Channel* queued_VIF0; //TODO: VIF0 has a higher priority, so it needs its own slot
-        std::list<DMA_Channel*> queued_channels;
+
+        //There are five different priority levels.
+        //0 - EE when cycle stealing is on
+        //1 - VIF0
+        //2 - SIF2
+        //3 - All other DMA channels
+        //4 - EE when cycle stealing is off
+        std::list<DMA_Channel*> queued_channels[DMAC_PRIORITIES];
+        int queued_chan_count;
 
         D_CTRL control;
         D_STAT interrupt_stat;
