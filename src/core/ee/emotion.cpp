@@ -539,6 +539,8 @@ void EmotionEngine::write128(uint32_t address, uint128_t value)
 
 void EmotionEngine::jp(uint32_t new_addr)
 {
+    if (branch_on)
+        Errors::die("Double branch at PC $%08X", PC);
     branch_on = true;
     new_PC = new_addr;
     delay_slot = 1;
@@ -567,6 +569,8 @@ void EmotionEngine::branch(bool condition, int offset)
 {
     if (condition)
     {
+        if (branch_on)
+            Errors::die("Double branch at PC $%08X", PC);
         branch_on = true;
         new_PC = PC + offset + 4;
         delay_slot = 1;
@@ -577,6 +581,8 @@ void EmotionEngine::branch_likely(bool condition, int offset)
 {
     if (condition)
     {
+        if (branch_on)
+            Errors::die("Double branch at PC $%08X", PC);
         branch_on = true;
         new_PC = PC + offset + 4;
         delay_slot = 1;
